@@ -1,0 +1,236 @@
+
+R version 4.3.1 (2023-06-16 ucrt) -- "Beagle Scouts"
+Copyright (C) 2023 The R Foundation for Statistical Computing
+Platform: x86_64-w64-mingw32/x64 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+[Workspace loaded from C:/Users/cmari
+
+> 
+  > #Read the data
+  > my_data <- scan()
+1: 1.3
+2: 1.17
+3: 0.63
+4: 0.67
+5: 0.36
+6: 1.18
+7: 1.61
+8: 1.32
+9: 1.13
+10: 1.38
+11: 1.48
+12: 0.45
+13: 1.8
+14: 1.09
+15: 1.08
+16: 1.39
+17: 1.32
+18: 1.55
+19: 1.15
+20: 0.98
+21: 1.39
+22: 1.74
+23: 0.73
+24: 0.93
+25: 0.97
+26: 1.2
+27: 0.96
+28: 1.34
+29: 1.65
+30: 0.88
+31: 0.9
+32: 1.19
+33: 2.01
+34: 0.53
+35: 1.01
+36: 2.49
+37: 1.14
+38: 1.19
+39: 1.16
+40: 1.09
+41: 
+  Read 40 items
+> 
+  > #created the function neg_log_nakagami
+  > neg_logl_nakagami <- function(theta, data) {
+    +   n <- length(data)
+    +   m <- theta[1]
+    +   omega <- theta[2]
+    +   loglikelihood <- n*log(2) + (n*m*log(m)) -
+      +     (n*log(factorial(m-1))) - (n*m*log(omega)) +
+      +     ((2*m-1)*sum(log(data))) - ((m/omega)*sum(data^2))
+    +   -loglikelihood
+    + }
+> 
+  > Used optim to find the maximum likelihood estimators (MLE) for M,Ω
+  > 
+  > fit_nagagani <- optim(c(1,1), neg_logl_nakagami, method='BFGS', 
+                          +                        data=my_data,hessian = TRUE)
+> print(fit_nagagani)
+$par
+[1] 2.195968 1.581475
+
+$value
+[1] 20.57055
+
+$counts
+function gradient 
+23        9 
+
+$convergence
+[1] 0
+
+$message
+NULL
+
+$hessian
+[,1]         [,2]
+[1,] 4.753935e+00 1.421085e-08
+[2,] 1.421085e-08 3.512060e+01
+
+> # var m.hat(2.195968),omega.hat(1.581475) 
+  > solve(fit_nagagani$hessian)
+[,1]          [,2]
+[1,]  2.103520e-01 -8.511478e-11
+[2,] -8.511478e-11  2.847332e-02
+> #standard errors m.hat=sqrt(solve(2.103520e-01))
+  > sqrt(solve(fit_nagagani$hessian)[1,1])
+[1] 0.4586415
+> 
+  > #standard errors omega.hat=sqrt(solve(2.847332e-02))
+  > sqrt(solve(fit_nagagani$hessian)[2,2])
+[1] 0.1687404
+> 
+  > #asympt norm 95%CI for m
+  > fit_nagagani$par[1]+c(-1,1)*1.96*sqrt(solve(fit_nagagani$hessian)[1,1])     
+[1] 1.297031 3.094906
+> 
+  > #asympt norm 95%CI for omega
+  > fit_nagagani$par[2]+c(-1,1)*1.96*sqrt(solve(fit_nagagani$hessian)[2,2]) 
+[1] 1.250744 1.912207
+> #question 2
+  > #Non-parametric bootstrap 
+  > #800 bootstrap samples for m.hat and omega.hat
+  > B <- 800       
+> m.hats <- numeric(B)
+> omega.hats <- numeric(B)
+>  
+  > for (i in 1:B){
+    +   rmydata <- sample(my_data,replace=TRUE)
+    +   m.hats[i] <- 
+      +     optim(c(1, 1), neg_logl_nakagami, method='BFGS', data=rmydata)$par[1]
+    +   omega.hats[i] <- 
+      +     optim(c(1,1), neg_logl_nakagami, method='BFGS', data=rmydata)$par[2]
+    + }
+There were 50 or more warnings (use warnings() to see the first 50)
+> #estimation of CIs 
+  > # percentile CIs for m
+  >  quantile(m.hats,prob=c(0.025,0.975))
+2.5%    97.5% 
+  1.541297 4.203231 
+>  
+  
+> #percentile CIs for omega
+  > quantile(omega.hats,prob=c(0.025,0.975))
+2.5%    97.5% 
+  1.251129 1.964150 
+> #Width_CI omega
+  > width_CI_omega <- 1.964150 -1.251129
+> print(width_CI_omega)
+[1] 0.713021
+> sd(omega.hats)
+[1] 0.1825384
+> ##corresponding estimate from Fisher Information
+  > sqrt(2.847332e-02)
+[1] 0.1687404
+> #question 3
+  > #mode estimation for data part A using m.hat,omega.hat
+  > mode.hat <- sqrt(((2*2.195968-1)*1.581475)/(2*2.195968))
+>                     
+  > print(mode.hat)
+[1] 1.105165
+> 
+  > #400 parametric bootstrap samples
+  > B <- 400       #400 bootstrap samples (typically enough for a var)
+> mode.hats <- numeric(B)    #p for parametric
+> n <- length(my_data)           #sample size of real data
+> for (i in 1:B){
+  +   rmy_data <- sqrt(rgamma(n,shape =2.195968,scale = 1.581475/2.195968))
+  +   fit_nagagani_random <- optim(c(1,1), neg_logl_nakagami, method='BFGS', 
+                                   +                         data=rmy_data,hessian = TRUE)
+  +   
+    +   mode.hats[i] <- sqrt(((2*fit_nagagani_random$par[1]-1)*fit_nagagani_random$par[2])
+                             +                        /(2*fit_nagagani_random$par[1]))
+    + }
+There were 50 or more warnings (use warnings() to see the first 50)
+> Checking if m=3 was a good assumption
+  > mode.assumption3 <- sqrt(((2*3-1)*1.581475)/(2*3))
+> print(mode.assumption3)
+[1] 1.147996
+> mode.assumption2 <- sqrt(((2*2-1)*1.581475)/(2*2))
+> print(mode.assumption2)
+[1] 1.089085
+> 
+  > 
+  > #mean mode.hats
+  > mean(mode.hats)
+[1] 1.107465
+> #standard error
+  > sd(mode.hats)
+[1] 0.06752107
+> 
+  > 
+  > # we want to test H0: omega  = 2
+  >                # H1:omega != 2
+  > 
+  > n <- length(my_data)
+> #MLE of omega
+  > omega.hat <- sum(my_data^2)/n
+> #value under H0
+  > omega0 <- 2
+> m <- 3
+> 
+  > logL0.obs <- n*log(2) + (n*m*log(m)) -
+  +   (n*log(factorial(m-1))) - (n*m*log(omega0)) +
+  +   ((2*m-1)*sum(log(my_data))) - ((m/omega0)*sum(my_data^2))
+>   
+  > logL1.obs <- n*log(2) + (n*m*log(m)) -
+  +   (n*log(factorial(m-1))) - (n*m*log(omega.hat)) +
+  +   ((2*m-1)*sum(log(my_data))) - ((m/omega.hat)*sum(my_data^2))
+> lratio_test.obs <- -2*(logL0.obs-logL1.obs)
+> print(lratio_test.obs)
+[1] 6.126414
+> 
+  > #simulated distribution of LRT
+  > r <- 1000                          #number of simulations (arbitrary)
+> lrt <- numeric(r)                  
+> for (i in 1:1000){
+  +   rmy_data <- sqrt(rgamma(n,shape =3,scale = 2/3))
+  +   logL0 <- n*log(2) + (n*m*log(m)) -
+    +   (n*log(factorial(m-1))) - (n*m*log(omega0)) +
+    +   ((2*m-1)*sum(log(rmy_data))) - ((m/omega0)*sum(rmy_data^2))
+  +   
+    + logL1 <- n*log(2) + (n*m*log(m)) -
+      +   (n*log(factorial(m-1))) - (n*m*log(omega.hat)) +
+      +   ((2*m-1)*sum(log(rmy_data))) - ((m/omega.hat)*sum(rmy_data^2))
+    +   lrt[i] <- -2 * (logL0-logL1)
+    + }
+> 
+  > hist(lrt,prob=T)
+> abline(v=lratio_test.obs,col='red') 
+> 
+  > sum(lrt > lratio_test.obs)/r
+[1] 0.005
+> 
